@@ -1,21 +1,23 @@
 <template>
   <div>
-    <div v-for="(row, rowIndex) in board" :key="rowIndex" class="flex">
-      <div
-        v-for="(cell, colIndex) in row"
-        :key="colIndex"
-        class="w-10 h-10 border border-gray-300 flex items-center justify-center text-lg cursor-pointer m-1 transition duration-300 ease-in-out hover:bg-gray-200"
-        @click="handleCellClick(rowIndex, colIndex)"
-      >
-        {{ cell }}
-      </div>
-    </div>
+    <h1>Tic Tac Toe</h1>
+    <p v-if="!gameFinished">Current Turn: Player {{ currentPlayer }}</p>
+    <table>
+      <tr v-for="(row, rowIndex) in board" :key="rowIndex">
+        <td
+          v-for="(cell, colIndex) in row"
+          :key="colIndex"
+          class="cell"
+          :class="{ vert: colIndex !== 2, hori: rowIndex !== 2 }"
+          @click="handleCellClick(rowIndex, colIndex)"
+        >
+          {{ cell }}
+        </td>
+      </tr>
+    </table>
 
-    <div>
-      <h2>Action Log</h2>
-      <ul>
-        <li v-for="(action, index) in actionLog" :key="index">{{ action.action }}</li>
-      </ul>
+    <div class="button-container">
+      <button @click="startNewGame">Start New Game</button>
     </div>
   </div>
 </template>
@@ -26,14 +28,14 @@ import axios from 'axios';
 export default {
   data() {
     return {
-      board: [
+      board: this.loadGameBoard() || [
         ['', '', ''],
         ['', '', ''],
         ['', '', ''],
       ],
-      currentPlayer: 'X',
-      actionLog: [],
+      currentPlayer: this.loadCurrentPlayer() || 'X',
       gameFinished: false,
+      totalMoves: 0,
     };
   },
 
@@ -41,23 +43,33 @@ export default {
     async handleCellClick(row, col) {
       if (!this.gameFinished && this.board[row][col] === '') {
         this.board[row][col] = this.currentPlayer;
+        this.totalMoves++;
 
-        await axios.post('/make-move', {
-          row,
-          col,
-          player: this.currentPlayer,
-        });
+        try {
+          await axios.post('http://localhost:8000/make-move', {
+            row,
+            col,
+            player: this.currentPlayer,
+          });
 
-        this.fetchActionLog();
+          // Fetch the updated board from the server
+          await this.fetchBoard();
+
+          // Save the game state to localStorage
+          this.saveGameBoard();
+          this.saveCurrentPlayer();
+        } catch (error) {
+          console.error('Error making move:', error);
+        }
 
         if (this.checkWinner()) {
-          this.actionLog.push({ action: `Player ${this.currentPlayer} wins!` });
-          this.gameFinished = true;
+          alert(`Player ${this.currentPlayer} wins!`);
+          this.startNewGame();
         } else if (this.isBoardFull()) {
-          this.actionLog.push({ action: 'It\'s a tie!' });
-          this.gameFinished = true;
+          alert('It\'s a tie!');
+          this.startNewGame();
         } else {
-          this.currentPlayer = this.currentPlayer === 'X' ? 'O' : 'X';
+          this.switchPlayer();
         }
       }
     },
@@ -101,32 +113,99 @@ export default {
 
     isBoardFull() {
       // Check if all cells are filled
-      for (let row = 0; row < 3; row++) {
-        for (let col = 0; col < 3; col++) {
-          if (this.board[row][col] === '') {
-            return false;
-          }
-        }
-      }
-      return true;
+      return this.totalMoves === 9;
     },
 
-    async fetchActionLog() {
-      try {
-        const response = await axios.get('/get-action-log');
-        this.actionLog = response.data;
-      } catch (error) {
-        console.error('Error fetching action log:', error);
-      }
-    },
-  },
+    startNewGame() {
+      this.board = [
+        ['', '', ''],
+        ['', '', ''],
+        ['', '', ''],
+      ];
+      this.currentPlayer = 'X';
+      this.gameFinished = false;
+      this.totalMoves = 0;
 
-  created() {
-    this.fetchActionLog();
+      // Clear the saved game state in localStorage
+      this.clearSavedGameState();
+    },
+
+    async fetchBoard() {
+    try {
+        const response = await axios.get('http://localhost:8000/get-board');
+        this.board = response.data.board;
+        // Update other properties if needed
+    } catch (error) {
+        console.error('Error fetching board:', error);
+    }
+},
+
+
+    switchPlayer() {
+      this.currentPlayer = this.currentPlayer === 'X' ? 'O' : 'X';
+    },
+
+    saveGameBoard() {
+      localStorage.setItem('ticTacToeBoard', JSON.stringify(this.board));
+    },
+
+    loadGameBoard() {
+      const savedBoard = localStorage.getItem('ticTacToeBoard');
+      return savedBoard ? JSON.parse(savedBoard) : null;
+    },
+
+    saveCurrentPlayer() {
+      localStorage.setItem('ticTacToeCurrentPlayer', this.currentPlayer);
+    },
+
+    loadCurrentPlayer() {
+      return localStorage.getItem('ticTacToeCurrentPlayer') || null;
+    },
+
+    clearSavedGameState() {
+      localStorage.removeItem('ticTacToeBoard');
+      localStorage.removeItem('ticTacToeCurrentPlayer');
+    },
   },
 };
 </script>
 
 <style scoped>
-/* Additional component-specific styles go here */
+h1 {
+  text-align: center;
+}
+
+table {
+  margin: 5px auto;
+}
+
+.cell {
+  width: 100px;
+  height: 100px;
+  border: 2px solid black;
+  text-align: center;
+  font-size: 2rem;
+  cursor: pointer;
+}
+
+.vert {
+  border-left: 2px solid black;
+  border-right: 2px solid black;
+}
+
+.hori {
+  border-top: 2px solid black;
+  border-bottom: 2px solid black;
+}
+
+.button-container {
+  margin-top: 20px;
+  text-align: center;
+}
+
+button {
+  padding: 10px 20px;
+  font-size: 1rem;
+  cursor: pointer;
+}
 </style>
