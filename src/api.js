@@ -3,7 +3,7 @@
 import axios from 'axios';
 
 const apiClient = axios.create({
-    baseURL: 'http://localhost:8000/api', // Update the URL to match your Laravel API endpoint
+    baseURL: 'http://localhost:8000', // Update the URL to match your Laravel API endpoint
     headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
