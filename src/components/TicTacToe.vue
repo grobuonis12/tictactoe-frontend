@@ -36,17 +36,21 @@ export default {
       currentPlayer: this.loadCurrentPlayer() || 'X',
       gameFinished: false,
       totalMoves: 0,
+      isProcessing: false,
     };
   },
 
   methods: {
     async handleCellClick(row, col) {
-      if (!this.gameFinished && this.board[row][col] === '') {
+      // Check if the game is not finished, the cell is empty, and not processing
+      if (!this.gameFinished && this.board[row][col] === '' && !this.isProcessing) {
+        this.isProcessing = true; // Set the flag to indicate processing
+
         this.board[row][col] = this.currentPlayer;
         this.totalMoves++;
 
         try {
-          await axios.post('http://localhost:8000/make-move', {
+          const response = await axios.post('http://localhost:8000/make-move', {
             row,
             col,
             player: this.currentPlayer,
@@ -58,8 +62,17 @@ export default {
           // Save the game state to localStorage
           this.saveGameBoard();
           this.saveCurrentPlayer();
+
+          // Check if the response indicates an error
+          if (response.data.error) {
+            console.error('Server error:', response.data.error);
+            // Handle the error as needed
+          }
+
         } catch (error) {
           console.error('Error making move:', error);
+        } finally {
+          this.isProcessing = false; // Reset the flag after processing
         }
 
         if (this.checkWinner()) {
@@ -131,15 +144,14 @@ export default {
     },
 
     async fetchBoard() {
-    try {
+      try {
         const response = await axios.get('http://localhost:8000/get-board');
         this.board = response.data.board;
         // Update other properties if needed
-    } catch (error) {
+      } catch (error) {
         console.error('Error fetching board:', error);
-    }
-},
-
+      }
+    },
 
     switchPlayer() {
       this.currentPlayer = this.currentPlayer === 'X' ? 'O' : 'X';
